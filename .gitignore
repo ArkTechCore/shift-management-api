@@ -1,8 +1,20 @@
+# env
+.env
 .venv/
 venv/
+
+# python
 __pycache__/
 *.pyc
-.env
-.DS_Store
-.idea/
+
+# IDE
 .vscode/
+.idea/
+
+# tests/coverage
+.pytest_cache/
+.mypy_cache/
+
+# build
+dist/
+build/

@@ -1,16 +1,11 @@
-from pydantic import BaseModel, EmailStr
-
-
-class UserCreate(BaseModel):
-    email: EmailStr
-    full_name: str
-    role: str
+from pydantic import BaseModel
 
 
 class UserOut(BaseModel):
     id: int
-    email: EmailStr
-    full_name: str
+    username: str
     role: str
+    is_active: bool
 
-    model_config = {"from_attributes": True}
+    class Config:
+        from_attributes = True
