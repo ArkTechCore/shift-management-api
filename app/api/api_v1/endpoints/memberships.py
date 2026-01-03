@@ -1,4 +1,3 @@
-import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -6,6 +5,7 @@ from app.core.deps import get_db, get_current_user
 from app.core.access import require_store_access
 from app.models.user import User
 from app.models.membership import StoreMembership
+from app.models.store import Store
 from app.schemas.membership import MembershipCreate, MembershipOut
 
 router = APIRouter()
@@ -17,26 +17,47 @@ def create_membership(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # admin can assign anywhere, manager only within their store
+    # Resolve store_id if admin sends store_code
+    store_id = data.store_id
+    if store_id is None:
+        code = (data.store_code or "").strip()
+        st = db.query(Store).filter(Store.code == code, Store.is_active == True).first()
+        if not st:
+            raise HTTPException(status_code=404, detail="Store not found by code")
+        store_id = st.id
+
+    # Admin can assign anywhere. Manager only within their store
     if user.role != "admin":
-        require_store_access(db, user, str(data.store_id))
+        require_store_access(db, user, str(store_id))
 
     existing = (
         db.query(StoreMembership)
         .filter(
             StoreMembership.user_id == data.user_id,
-            StoreMembership.store_id == data.store_id,
+            StoreMembership.store_id == store_id,
         )
         .first()
     )
     if existing:
+        # If it exists but inactive, reactivate & update role/pay
+        existing.is_active = True
+        existing.store_role = data.store_role
+
+        if data.store_role == "employee":
+            existing.pay_rate = data.pay_rate or "0"
+        else:
+            existing.pay_rate = "0"
+
+        db.commit()
+        db.refresh(existing)
         return existing
 
     m = StoreMembership(
         user_id=data.user_id,
-        store_id=data.store_id,
+        store_id=store_id,
         store_role=data.store_role,
-        pay_rate=data.pay_rate,
+        pay_rate=(data.pay_rate or "0") if data.store_role == "employee" else "0",
+        is_active=True,
     )
     db.add(m)
     db.commit()
@@ -53,4 +74,28 @@ def list_store_memberships(
     if user.role != "admin":
         require_store_access(db, user, store_id)
 
-    return db.query(StoreMembership).filter(StoreMembership.store_id == store_id).all()
+    return (
+        db.query(StoreMembership)
+        .filter(StoreMembership.store_id == store_id)
+        .order_by(StoreMembership.user_id.asc())
+        .all()
+    )
+
+
+@router.delete("/{membership_id}", status_code=200)
+def delete_membership(
+    membership_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # Admin only for deletes (keeps history safe)
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    m = db.query(StoreMembership).filter(StoreMembership.id == membership_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Membership not found")
+
+    m.is_active = False
+    db.commit()
+    return {"ok": True, "membership_id": membership_id}

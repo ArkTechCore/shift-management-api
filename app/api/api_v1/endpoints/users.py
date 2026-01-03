@@ -1,42 +1,79 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
-from app.core.deps import get_db, get_current_user_optional
-from app.schemas.user import UserCreate, UserOut
-from app.models.user import User
+from app.core.deps import get_db, get_current_user
 from app.core.security import hash_password
+from app.models.user import User
+from app.schemas.user import UserCreate, UserOut
 
 router = APIRouter()
 
-@router.post("", response_model=UserOut)
+
+@router.get("", response_model=list[UserOut])
+def list_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    return (
+        db.query(User)
+        .filter(User.is_active == True)
+        .order_by(User.email.asc())
+        .all()
+    )
+
+
+@router.post("", response_model=UserOut, status_code=201)
 def create_user(
     data: UserCreate,
     db: Session = Depends(get_db),
-    current_user: User | None = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
-    users_count = db.query(User).count()
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
 
-    # 1) Bootstrap mode: ONLY local + empty DB
-    if settings.ENV == "local" and users_count == 0:
-        if data.role != "admin":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="First user must be admin",
-            )
-    else:
-        # 2) Normal mode: MUST be logged-in admin
-        if current_user is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-        if current_user.role != "admin":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+    existing = db.query(User).filter(User.email == data.email).first()
 
-    user = User(
+    if existing:
+        # Reactivate + reset role + reset password + update profile fields
+        existing.is_active = True
+        existing.role = data.role
+        existing.full_name = data.full_name
+        existing.phone = data.phone
+        existing.hashed_password = hash_password(data.password)
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    u = User(
         email=data.email,
-        hashed_password=hash_password(data.password),
         role=data.role,
+        full_name=data.full_name,
+        phone=data.phone,
+        hashed_password=hash_password(data.password),
+        is_active=True,
     )
-    db.add(user)
+    db.add(u)
     db.commit()
-    db.refresh(user)
-    return user
+    db.refresh(u)
+    return u
+
+
+@router.delete("/{user_id}", status_code=200)
+def delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    u.is_active = False
+    db.commit()
+    return {"ok": True, "user_id": user_id}
