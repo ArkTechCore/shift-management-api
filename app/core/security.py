@@ -1,11 +1,8 @@
-# app/core/security.py
-
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
 from jose import jwt
 from passlib.context import CryptContext
-
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
@@ -24,21 +21,17 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(
     subject: str,
-    claims: Optional[Dict[str, Any]] = None,
     expires_delta: Optional[timedelta] = None,
+    extra_claims: Optional[Dict[str, Any]] = None,
 ) -> str:
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
 
     to_encode = {
         "sub": subject,
         "exp": expire,
     }
 
-    if claims:
-        # put role/email in JWT so Flutter routes automatically
-        to_encode.update(claims)
+    if extra_claims:
+        to_encode.update(extra_claims)
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
