@@ -1,22 +1,25 @@
+# app/core/config.py
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Shift Management API"
+    PROJECT_NAME: str = "Shift Management API"
+    API_V1_STR: str = "/api/v1"
+
+    # ENVIRONMENT
     ENV: str = "local"
 
-    # Use "*" for now while testing. Later we’ll lock it down.
-    CORS_ORIGINS: str = "*"
+    # SECURITY
+    SECRET_KEY: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
-    # Render will provide this as an env var later
-    DATABASE_URL: str = ""
-
-    JWT_SECRET: str = "change-me"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 days
+    # DATABASE
+    DATABASE_URL: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
-        extra="ignore",
+        extra="allow",   # <<< THIS FIXES YOUR ERROR
     )
 
 

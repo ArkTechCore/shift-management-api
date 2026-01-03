@@ -1,0 +1,31 @@
+from fastapi import APIRouter
+
+from app.api.api_v1.endpoints import (
+    auth,
+    users,
+    stores,
+    schedules,
+    weeks,
+    timeclock,
+    manager_timeentries,
+    payroll,
+    availability,
+    leave_request,
+    memberships,
+)
+
+api_router = APIRouter()
+
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(stores.router, prefix="/stores", tags=["stores"])
+api_router.include_router(schedules.router, prefix="/schedules", tags=["schedules"])
+api_router.include_router(weeks.router, prefix="/weeks", tags=["weeks"])
+api_router.include_router(timeclock.router, prefix="/timeclock", tags=["timeclock"])
+api_router.include_router(manager_timeentries.router, prefix="/manager/timeentries", tags=["manager-timeentries"])
+api_router.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
+
+# NEW
+api_router.include_router(availability.router, prefix="/availability", tags=["availability"])
+api_router.include_router(leave_request.router, prefix="/leave-request", tags=["leave-request"])
+api_router.include_router(memberships.router, prefix="/memberships", tags=["memberships"])
