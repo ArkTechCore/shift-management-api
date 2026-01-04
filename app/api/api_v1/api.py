@@ -12,6 +12,7 @@ from app.api.api_v1.endpoints import (
     availability,
     leave_request,
     memberships,
+    ai_schedule, 
 )
 
 api_router = APIRouter()
@@ -28,4 +29,6 @@ api_router.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
 # NEW
 api_router.include_router(availability.router, prefix="/availability", tags=["availability"])
 api_router.include_router(leave_request.router, prefix="/leave-request", tags=["leave-request"])
-api_router.include_router(memberships.router, prefix="/memberships", tags=["memberships"])
+api_router.include_router(memberships.router, prefix="/memberships", tags=["memberships"]) 
+
+api_router.include_router(ai_schedule.router, prefix="/ai/schedule", tags=["ai-schedule"])
