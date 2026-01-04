@@ -17,16 +17,20 @@ def create_membership(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # Resolve store_id if admin sends store_code
+    # Resolve store_id from store_code if needed
     store_id = data.store_id
     if store_id is None:
         code = (data.store_code or "").strip()
-        st = db.query(Store).filter(Store.code == code, Store.is_active == True).first()
+        st = (
+            db.query(Store)
+            .filter(Store.code == code, Store.is_active == True)
+            .first()
+        )
         if not st:
             raise HTTPException(status_code=404, detail="Store not found by code")
         store_id = st.id
 
-    # Admin can assign anywhere. Manager only within their store
+    # Admin can assign anywhere. Manager only within their store access.
     if user.role != "admin":
         require_store_access(db, user, str(store_id))
 
@@ -38,16 +42,16 @@ def create_membership(
         )
         .first()
     )
+
+    # Enforce pay_rate rules: manager has no pay_rate
+    final_pay_rate = "0"
+    if data.store_role == "employee":
+        final_pay_rate = (data.pay_rate or "0").strip() or "0"
+
     if existing:
-        # If it exists but inactive, reactivate & update role/pay
         existing.is_active = True
         existing.store_role = data.store_role
-
-        if data.store_role == "employee":
-            existing.pay_rate = data.pay_rate or "0"
-        else:
-            existing.pay_rate = "0"
-
+        existing.pay_rate = final_pay_rate
         db.commit()
         db.refresh(existing)
         return existing
@@ -56,7 +60,7 @@ def create_membership(
         user_id=data.user_id,
         store_id=store_id,
         store_role=data.store_role,
-        pay_rate=(data.pay_rate or "0") if data.store_role == "employee" else "0",
+        pay_rate=final_pay_rate,
         is_active=True,
     )
     db.add(m)
@@ -76,7 +80,10 @@ def list_store_memberships(
 
     return (
         db.query(StoreMembership)
-        .filter(StoreMembership.store_id == store_id)
+        .filter(
+            StoreMembership.store_id == store_id,
+            StoreMembership.is_active == True,
+        )
         .order_by(StoreMembership.user_id.asc())
         .all()
     )
@@ -88,7 +95,6 @@ def delete_membership(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # Admin only for deletes (keeps history safe)
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
 

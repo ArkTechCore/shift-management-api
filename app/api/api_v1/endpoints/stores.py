@@ -5,7 +5,7 @@ from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.store import Store
 from app.models.membership import StoreMembership
-from app.schemas.store import StoreCreate, StoreOut  # keep your existing schemas
+from app.schemas.store import StoreCreate, StoreOut
 
 router = APIRouter()
 
@@ -31,7 +31,7 @@ def my_stores(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # Admin can see all stores (active)
+    # Admin can see all active stores
     if user.role == "admin":
         return (
             db.query(Store)
@@ -40,7 +40,6 @@ def my_stores(
             .all()
         )
 
-    # Manager/Employee: stores based on active memberships
     store_ids = (
         db.query(StoreMembership.store_id)
         .filter(
@@ -73,7 +72,6 @@ def create_store(
 
     existing = db.query(Store).filter(Store.code == data.code).first()
     if existing:
-        # If store exists but inactive, re-activate it
         existing.is_active = True
         db.commit()
         db.refresh(existing)

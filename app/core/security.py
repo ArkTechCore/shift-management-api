@@ -1,8 +1,11 @@
+# app/core/security.py
+
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
 from jose import jwt
 from passlib.context import CryptContext
+
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
@@ -24,7 +27,10 @@ def create_access_token(
     expires_delta: Optional[timedelta] = None,
     extra_claims: Optional[Dict[str, Any]] = None,
 ) -> str:
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode = {
         "sub": subject,
@@ -32,6 +38,10 @@ def create_access_token(
     }
 
     if extra_claims:
+        # Prevent overriding core claims accidentally
+        extra_claims = dict(extra_claims)
+        extra_claims.pop("sub", None)
+        extra_claims.pop("exp", None)
         to_encode.update(extra_claims)
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)

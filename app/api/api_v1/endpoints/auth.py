@@ -11,14 +11,17 @@ router = APIRouter()
 
 @router.post("/login", response_model=TokenResponse)
 def login(data: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == data.email, User.is_active == True).first()
+    user = (
+        db.query(User)
+        .filter(User.email == data.email, User.is_active == True)
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
     if not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
-    # ✅ Put role + email in token so Flutter opens correct UI automatically
     token = create_access_token(
         subject=str(user.id),
         extra_claims={
@@ -26,5 +29,4 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
             "email": user.email,
         },
     )
-
     return {"access_token": token, "token_type": "bearer"}
