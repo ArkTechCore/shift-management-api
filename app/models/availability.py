@@ -11,7 +11,7 @@ from app.models.base import Base
 class Availability(Base):
     """
     Employee availability for a specific store + week + day.
-    Keep it simple + normalized (one row per day).
+    
     """
     __tablename__ = "availability"
     __table_args__ = (

@@ -2,58 +2,73 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_current_user
-from app.core.security import hash_password
+from app.core.security import get_password_hash
 from app.models.user import User
 from app.schemas.user import UserCreate, UserOut
 
 router = APIRouter()
 
 
+def _is_developer(me) -> bool:
+    return (getattr(me, "role", "") or "").lower() == "developer"
+
+
+def _require_tenant_scoped(me):
+    # developer can have tenant_id NULL; tenant users MUST have tenant_id
+    if _is_developer(me):
+        return
+    if getattr(me, "tenant_id", None) is None:
+        raise HTTPException(status_code=403, detail="Tenant context missing.")
+
+
 @router.get("", response_model=list[UserOut])
 def list_users(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    me=Depends(get_current_user),
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
+    # Developer: can list users only if you later add tenant filter.
+    # For now: block developer from listing tenant users (privacy).
+    if _is_developer(me):
+        raise HTTPException(status_code=403, detail="Developer cannot list tenant users.")
 
-    return (
-        db.query(User)
-        .filter(User.is_active == True)
-        .order_by(User.email.asc())
-        .all()
-    )
+    _require_tenant_scoped(me)
+
+    tenant_id = me.tenant_id
+    users = db.query(User).filter(User.tenant_id == tenant_id).order_by(User.email.asc()).all()
+    return users
 
 
-@router.post("", response_model=UserOut, status_code=201)
+@router.post("", response_model=UserOut)
 def create_user(
-    data: UserCreate,
+    body: UserCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    me=Depends(get_current_user),
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
+    if _is_developer(me):
+        raise HTTPException(status_code=403, detail="Developer cannot create tenant users here.")
 
-    existing = db.query(User).filter(User.email == data.email).first()
+    _require_tenant_scoped(me)
 
-    if existing:
-        # Reactivate + reset role + reset password + update profile fields
-        existing.is_active = True
-        existing.role = data.role
-        existing.full_name = data.full_name
-        existing.phone = data.phone
-        existing.hashed_password = hash_password(data.password)
-        db.commit()
-        db.refresh(existing)
-        return existing
+    email = body.email.strip().lower()
+
+    exists = db.query(User).filter(User.email == email).first()
+    if exists:
+        raise HTTPException(status_code=409, detail="Email already exists.")
+
+    # tenant admin controls managers/employees in their tenant
+    role = (body.role or "employee").lower()
+    if role not in ["tenant_admin", "manager", "employee"]:
+        raise HTTPException(status_code=400, detail="Invalid role.")
 
     u = User(
-        email=data.email,
-        role=data.role,
-        full_name=data.full_name,
-        phone=data.phone,
-        hashed_password=hash_password(data.password),
-        is_active=True,
+        email=email,
+        role=role,
+        tenant_id=me.tenant_id,
+        name=getattr(body, "name", None),
+        phone=getattr(body, "phone", None),
+        hashed_password=get_password_hash(body.password),
+        status="active",
+        must_change_password=bool(getattr(body, "must_change_password", False)),
     )
     db.add(u)
     db.commit()
@@ -61,19 +76,21 @@ def create_user(
     return u
 
 
-@router.delete("/{user_id}", status_code=200)
+@router.delete("/{user_id}")
 def delete_user(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    me=Depends(get_current_user),
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
+    if _is_developer(me):
+        raise HTTPException(status_code=403, detail="Developer cannot delete tenant users.")
 
-    u = db.query(User).filter(User.id == user_id).first()
+    _require_tenant_scoped(me)
+
+    u = db.query(User).filter(User.id == user_id, User.tenant_id == me.tenant_id).first()
     if not u:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found.")
 
-    u.is_active = False
+    db.delete(u)
     db.commit()
-    return {"ok": True, "user_id": user_id}
+    return {"ok": True}
