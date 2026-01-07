@@ -1,7 +1,7 @@
 import uuid
-from sqlalchemy import String, Boolean
+from sqlalchemy import Column, String, Boolean, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import func
 
 from app.models.base import Base
 
@@ -9,21 +9,29 @@ from app.models.base import Base
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    email: Mapped[str] = mapped_column(
-        String(255), unique=True, index=True, nullable=False
-    )
+    # Tenant boundary (NULL only for developer/super admin)
+    tenant_id = Column(UUID(as_uuid=True), nullable=True, index=True)
 
-    # ✅ NEW (optional)
-    full_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
 
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    # developer | tenant_admin | manager | employee
+    role = Column(String(50), nullable=False, default="employee")
 
-    # "admin" | "manager" | "employee"
-    role: Mapped[str] = mapped_column(String(20), nullable=False, default="employee")
+    hashed_password = Column(String(255), nullable=False)
 
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Profile
+    name = Column(String(120), nullable=True)
+    phone = Column(String(32), nullable=True)
+
+    # Status + security
+    status = Column(String(24), nullable=False, default="active")  # active|disabled
+    must_change_password = Column(Boolean, nullable=False, default=False)
+    temp_password_issued_at = Column(DateTime(timezone=True), nullable=True)
+    password_changed_at = Column(DateTime(timezone=True), nullable=True)
+
+    failed_login_count = Column(Integer, nullable=False, default=0)
+    locked_until = Column(DateTime(timezone=True), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

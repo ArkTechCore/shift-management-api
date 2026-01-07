@@ -6,25 +6,45 @@ import uuid
 class UserBase(BaseModel):
     email: EmailStr
     role: str
-    full_name: Optional[str] = None
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    status: str = "active"  # active|disabled
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    role: str = "employee"  # tenant_admin|manager|employee
+
+    name: Optional[str] = None
     phone: Optional[str] = None
 
-
-class UserCreate(UserBase):
-    password: str
+    must_change_password: bool = False
 
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     role: Optional[str] = None
-    full_name: Optional[str] = None
+    name: Optional[str] = None
     phone: Optional[str] = None
-    is_active: Optional[bool] = None
+    status: Optional[str] = None  # active|disabled
 
 
 class UserOut(UserBase):
     id: uuid.UUID
-    is_active: bool
+    tenant_id: Optional[uuid.UUID] = None
+
+    must_change_password: bool = False
+
+    # convenience flag for UI
+    is_active: bool = True
 
     class Config:
         from_attributes = True
+
+
+class ResetPasswordOut(BaseModel):
+    user_id: str
+    email: str
+    temp_password: str
+    must_change_password: bool = True

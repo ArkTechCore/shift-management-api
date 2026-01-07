@@ -45,3 +45,6 @@ def create_access_token(
         to_encode.update(extra_claims)
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+ 
+def get_password_hash(password: str) -> str:
+    return hash_password(password)
