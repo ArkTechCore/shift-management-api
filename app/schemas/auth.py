@@ -15,6 +15,7 @@ class TokenResponse(BaseModel):
     tenant_id: Optional[str] = None
     email: Optional[str] = None
 
+
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str

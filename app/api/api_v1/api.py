@@ -1,8 +1,21 @@
 from fastapi import APIRouter
 
-from app.api.api_v1.endpoints import auth, users, stores, schedules, weeks, timeclock
-from app.api.api_v1.endpoints import manager_timeentries, payroll, availability, leave_request, memberships, ai_schedule
-from app.api.api_v1.endpoints import developer  # NEW
+from app.api.api_v1.endpoints import auth
+from app.api.api_v1.endpoints import users
+from app.api.api_v1.endpoints import stores
+from app.api.api_v1.endpoints import schedules
+from app.api.api_v1.endpoints import weeks
+from app.api.api_v1.endpoints import timeclock
+from app.api.api_v1.endpoints import manager_timeentries
+from app.api.api_v1.endpoints import payroll
+from app.api.api_v1.endpoints import availability
+from app.api.api_v1.endpoints import leave_request
+from app.api.api_v1.endpoints import memberships
+from app.api.api_v1.endpoints import ai_schedule
+from app.api.api_v1.endpoints import developer
+
+
+from app.api.api_v1.endpoints import payroll_invoices
 
 api_router = APIRouter()
 
@@ -21,5 +34,7 @@ api_router.include_router(leave_request.router, prefix="/leave-request", tags=["
 api_router.include_router(memberships.router, prefix="/memberships", tags=["memberships"])
 api_router.include_router(ai_schedule.router, prefix="/ai", tags=["ai-schedule"])
 
-# Developer routes (no tenant sensitive data; only tenant/plan toggles)
 api_router.include_router(developer.router, prefix="/developer", tags=["developer"])
+
+
+api_router.include_router(payroll_invoices.router, prefix="/payroll-invoices", tags=["payroll-invoices"])

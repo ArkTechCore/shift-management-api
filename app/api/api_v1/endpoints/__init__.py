@@ -1,4 +1,4 @@
-from . import auth, users, stores, schedules, weeks, timeclock, manager_timeentries, payroll, availability, leave_request, memberships, ai_schedule, developer
+from . import auth, users, stores, schedules, weeks, timeclock, manager_timeentries, payroll, availability, leave_request, memberships, ai_schedule, developer, payroll_invoices
 
 __all__ = [
     "auth",
@@ -14,4 +14,5 @@ __all__ = [
     "memberships",
     "ai_schedule",
     "developer", 
+    "payroll_invoices",
 ]

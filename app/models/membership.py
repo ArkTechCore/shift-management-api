@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, ForeignKey, Boolean
+from sqlalchemy import String, ForeignKey, Boolean, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,11 +23,14 @@ class StoreMembership(Base):
         nullable=False,
     )
 
-    # membership role inside that store: "manager" or "employee"
     store_role: Mapped[str] = mapped_column(String(20), nullable=False, default="employee")
 
-    # store-specific pay rate (because same employee can work multiple stores)
+    # legacy (keep it)
     pay_rate: Mapped[str] = mapped_column(String(20), nullable=False, default="0")
 
-    # disable membership without deleting history
+    # NEW (used by payroll invoices)
+    pay_rate_hourly: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
+    tax_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    tax_rate_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
+
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

@@ -9,6 +9,9 @@ from app.models.user import User
 from app.schemas.tenant import TenantCreate, TenantOut, TenantUpdate
 from pydantic import BaseModel, EmailStr
 
+import secrets
+import string
+
 router = APIRouter()
 
 
@@ -18,11 +21,35 @@ def _require_developer(user):
         raise HTTPException(status_code=403, detail="Developer access required.")
 
 
+def _gen_temp_password(length: int = 12) -> str:
+    # easy to type, strong enough for temp use
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _validate_temp_password(pw: str) -> str:
+    pw = (pw or "").strip()
+    if len(pw) < 8:
+        raise HTTPException(status_code=400, detail="Temp password must be at least 8 characters.")
+    return pw
+
+
 class _CreateTenantAdminBody(BaseModel):
     email: EmailStr
-    temp_password: str
+    # optional: if not provided, backend generates it
+    temp_password: str | None = None
     name: str | None = None
     phone: str | None = None
+
+
+class _CreateTenantAdminOut(BaseModel):
+    ok: bool
+    tenant_id: str
+    user_id: str
+    email: str
+    role: str
+    must_change_password: bool
+    temp_password: str
 
 
 @router.get("/tenants", response_model=list[TenantOut])
@@ -102,7 +129,7 @@ def enable_tenant(tenant_id: str, db: Session = Depends(get_db), me=Depends(get_
     return t
 
 
-@router.post("/tenants/{tenant_id}/create-admin")
+@router.post("/tenants/{tenant_id}/create-admin", response_model=_CreateTenantAdminOut)
 def create_tenant_admin(
     tenant_id: str,
     body: _CreateTenantAdminBody,
@@ -121,16 +148,29 @@ def create_tenant_admin(
     if not t.is_active:
         raise HTTPException(status_code=403, detail="Tenant is disabled.")
 
+    # Optional rule: allow only ONE tenant admin created via developer endpoint
+    # Comment this block if you want multiple.
+    existing_admin = (
+        db.query(User)
+        .filter(User.tenant_id == t.id, User.role == "tenant_admin")
+        .first()
+    )
+    if existing_admin:
+        raise HTTPException(status_code=409, detail="Tenant admin already exists for this tenant.")
+
     email = body.email.strip().lower()
     exists = db.query(User).filter(User.email == email).first()
     if exists:
         raise HTTPException(status_code=409, detail="Email already exists.")
 
+    temp_pw = body.temp_password.strip() if body.temp_password else _gen_temp_password()
+    temp_pw = _validate_temp_password(temp_pw)
+
     u = User(
         tenant_id=t.id,
         email=email,
         role="tenant_admin",
-        hashed_password=get_password_hash(body.temp_password),
+        hashed_password=get_password_hash(temp_pw),
         name=body.name,
         phone=body.phone,
         status="active",
@@ -148,4 +188,5 @@ def create_tenant_admin(
         "email": u.email,
         "role": u.role,
         "must_change_password": True,
+        "temp_password": temp_pw,  # returned ONE TIME to developer
     }

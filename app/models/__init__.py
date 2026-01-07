@@ -10,6 +10,7 @@ from app.models.tenant import Tenant
 # NEW
 from app.models.availability import Availability
 from app.models.leave_request import LeaveRequest
+from app.models.payroll_invoice import PayrollInvoice
 
 __all__ = [
     "Base",
@@ -24,6 +25,7 @@ __all__ = [
     "Availability",
     "LeaveRequest",
     "Tenant",
+    "PayrollInvoice",
 ]
 
 

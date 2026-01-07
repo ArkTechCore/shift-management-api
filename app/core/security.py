@@ -1,5 +1,3 @@
-# app/core/security.py
-
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
@@ -11,11 +9,15 @@ from app.core.config import settings
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
+
+
+def get_password_hash(password: str) -> str:
+    # alias used by endpoints
+    return hash_password(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -27,24 +29,17 @@ def create_access_token(
     expires_delta: Optional[timedelta] = None,
     extra_claims: Optional[Dict[str, Any]] = None,
 ) -> str:
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 
-    to_encode = {
+    to_encode: Dict[str, Any] = {
         "sub": subject,
         "exp": expire,
     }
 
     if extra_claims:
-        # Prevent overriding core claims accidentally
         extra_claims = dict(extra_claims)
         extra_claims.pop("sub", None)
         extra_claims.pop("exp", None)
         to_encode.update(extra_claims)
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
- 
-def get_password_hash(password: str) -> str:
-    return hash_password(password)
