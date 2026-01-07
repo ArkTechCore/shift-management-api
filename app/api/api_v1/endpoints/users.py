@@ -80,8 +80,10 @@ def create_user(body: UserCreate, db: Session = Depends(get_db), me=Depends(get_
         email=email,
         role=role,
         tenant_id=me.tenant_id,
-        name=getattr(body, "name", None),
-        full_name=getattr(body, "name", None),  # keep DB legacy populated too
+        name=(getattr(body, "name", None) or getattr(body, "full_name", None)),
+        full_name=(getattr(body, "full_name", None) or getattr(body, "name", None)),
+
+        
         phone=getattr(body, "phone", None),
         hashed_password=get_password_hash(body.password),
         status="active",
