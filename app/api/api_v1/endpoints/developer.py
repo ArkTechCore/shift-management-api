@@ -8,6 +8,11 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.tenant import TenantCreate, TenantOut, TenantUpdate
 from pydantic import BaseModel, EmailStr
+from app.models.store import Store
+from app.models.schedule import Schedule
+from app.models.timeentry import TimeEntry
+from app.models.payroll_invoice import PayrollInvoice
+from app.schemas.developer_insights import TenantInsightsOut
 
 import secrets
 import string
@@ -190,3 +195,160 @@ def create_tenant_admin(
         "must_change_password": True,
         "temp_password": temp_pw,  # returned ONE TIME to developer
     }
+
+@router.get("/tenants/{tenant_id}/insights", response_model=TenantInsightsOut)
+def tenant_insights(
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    me=Depends(get_current_user),
+):
+    _require_developer(me)
+
+    t = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Tenant not found.")
+
+    stores_count = db.query(func.count(Store.id)).filter(Store.tenant_id == t.id).scalar() or 0
+
+    users_count = db.query(func.count(User.id)).filter(User.tenant_id == t.id).scalar() or 0
+    active_users_count = (
+        db.query(func.count(User.id))
+        .filter(User.tenant_id == t.id, func.lower(User.status) == "active")
+        .scalar()
+        or 0
+    )
+
+    managers_count = (
+        db.query(func.count(User.id))
+        .filter(User.tenant_id == t.id, func.lower(User.role) == "manager")
+        .scalar()
+        or 0
+    )
+    employees_count = (
+        db.query(func.count(User.id))
+        .filter(User.tenant_id == t.id, func.lower(User.role) == "employee")
+        .scalar()
+        or 0
+    )
+
+    schedules_count = db.query(func.count(Schedule.id)).filter(Schedule.tenant_id == t.id).scalar() or 0
+    published_schedules_count = (
+        db.query(func.count(Schedule.id))
+        .filter(Schedule.tenant_id == t.id, Schedule.published == True)  # noqa: E712
+        .scalar()
+        or 0
+    )
+
+    open_time_entries_count = (
+        db.query(func.count(TimeEntry.id))
+        .filter(TimeEntry.tenant_id == t.id, TimeEntry.clock_out_at.is_(None))
+        .scalar()
+        or 0
+    )
+
+    invoices_count = (
+        db.query(func.count(PayrollInvoice.id))
+        .filter(PayrollInvoice.tenant_id == t.id)
+        .scalar()
+        or 0
+    )
+
+    return TenantInsightsOut(
+        tenant_id=t.id,
+        tenant_code=t.code,
+        tenant_name=t.name,
+        is_active=bool(t.is_active),
+
+        stores_count=int(stores_count),
+        users_count=int(users_count),
+        active_users_count=int(active_users_count),
+        managers_count=int(managers_count),
+        employees_count=int(employees_count),
+
+        schedules_count=int(schedules_count),
+        published_schedules_count=int(published_schedules_count),
+
+        open_time_entries_count=int(open_time_entries_count),
+        invoices_count=int(invoices_count),
+    )
+
+
+@router.get("/tenants/insights", response_model=list[TenantInsightsOut])
+def tenants_insights(
+    db: Session = Depends(get_db),
+    me=Depends(get_current_user),
+):
+    _require_developer(me)
+
+    tenants = db.query(Tenant).order_by(Tenant.name.asc()).all()
+    out: list[TenantInsightsOut] = []
+
+    for t in tenants:
+        stores_count = db.query(func.count(Store.id)).filter(Store.tenant_id == t.id).scalar() or 0
+
+        users_count = db.query(func.count(User.id)).filter(User.tenant_id == t.id).scalar() or 0
+        active_users_count = (
+            db.query(func.count(User.id))
+            .filter(User.tenant_id == t.id, func.lower(User.status) == "active")
+            .scalar()
+            or 0
+        )
+
+        managers_count = (
+            db.query(func.count(User.id))
+            .filter(User.tenant_id == t.id, func.lower(User.role) == "manager")
+            .scalar()
+            or 0
+        )
+        employees_count = (
+            db.query(func.count(User.id))
+            .filter(User.tenant_id == t.id, func.lower(User.role) == "employee")
+            .scalar()
+            or 0
+        )
+
+        schedules_count = db.query(func.count(Schedule.id)).filter(Schedule.tenant_id == t.id).scalar() or 0
+        published_schedules_count = (
+            db.query(func.count(Schedule.id))
+            .filter(Schedule.tenant_id == t.id, Schedule.published == True)  # noqa: E712
+            .scalar()
+            or 0
+        )
+
+        open_time_entries_count = (
+            db.query(func.count(TimeEntry.id))
+            .filter(TimeEntry.tenant_id == t.id, TimeEntry.clock_out_at.is_(None))
+            .scalar()
+            or 0
+        )
+
+        invoices_count = (
+            db.query(func.count(PayrollInvoice.id))
+            .filter(PayrollInvoice.tenant_id == t.id)
+            .scalar()
+            or 0
+        )
+
+        out.append(
+            TenantInsightsOut(
+                tenant_id=t.id,
+                tenant_code=t.code,
+                tenant_name=t.name,
+                is_active=bool(t.is_active),
+
+                stores_count=int(stores_count),
+                users_count=int(users_count),
+                active_users_count=int(active_users_count),
+                managers_count=int(managers_count),
+                employees_count=int(employees_count),
+
+                schedules_count=int(schedules_count),
+                published_schedules_count=int(published_schedules_count),
+
+                open_time_entries_count=int(open_time_entries_count),
+                invoices_count=int(invoices_count),
+            )
+        )
+
+    return out
+
