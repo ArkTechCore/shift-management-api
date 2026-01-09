@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, HTTPException
 from app.api.api_v1.api import api_router
 from app.core.config import settings
 from jose import jwt, JWTError
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Shift Management API", version="0.1.0")
 
@@ -58,3 +59,28 @@ def root():
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+
+# ---------------------------
+# CORS (required for web apps)
+# ---------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8080",
+        "http://localhost:4200",
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        # add your domains later:
+        # "https://yourdomain.com",
+        # "https://www.yourdomain.com",
+    ],
+    allow_credentials=False,  # keep false for simple + reliable browser behavior
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
